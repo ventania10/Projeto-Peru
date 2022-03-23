@@ -1,0 +1,219 @@
+---
+title: "Análise de Dados CENSO 2017"
+author: "Projeto Peru"
+output: html_document
+runtime: shiny
+---
+
+
+
+* * *
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(dplyr, ggplot2, stringr, sf, shiny)
+```
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#CODIGO DE LIMPEZA
+malha_d <- read_sf("./Malhas\\departamentos\\DEPARTAMENTOS.shp")
+malha_p <- read_sf("./Malhas\\provincias\\PROVINCIAS.shp")
+
+
+
+censo17 <- readxl::read_xlsx("./Censo 2007 e 2017\\POB_CENS_SEXO_EDAD_QUIN_2017.xlsX",sheet = "Sexo_2017",skip = 4)
+
+names(censo17)[1:2] <- c("Distrito","Sexo")
+
+a <- censo17$Distrito[!duplicated(censo17$Distrito)]
+a <- a[-1876]
+
+censo17 <- censo17[!is.na(censo17$Sexo),]
+censo17$Distrito <- rep(a,each=3)
+
+censo17 = data.frame(censo17[,-1], reshape2::colsplit(censo17$Distrito, pattern=",", names=c("Departamento","Provincia","Distrito") ))
+censo17 <-reshape2::melt(censo17,c("Departamento","Provincia","Distrito","Sexo"))
+
+
+
+```
+
+
+
+
+```{r echo=FALSE, warning=FALSE}
+#CODIGO DO GRAFICO
+options(scipen = 999)
+
+selectInput("distrito_s", "Selecione o distrito", 
+  choices = c(unique(censo17$Distrito)),selected =" distrito: Aramango")
+
+renderPlot({
+B <- censo17 %>% filter(Distrito ==input$distrito_s)
+
+B <- B %>% 
+  mutate(value2 = ifelse(Sexo=="Hombre", -as.numeric(value) , as.numeric(value)))
+
+B %>% filter(Sexo!="Total",variable!="Total") %>% 
+  ggplot(aes(
+    x = variable, y = value2,
+    fill = Sexo, label=abs(value2))
+  ) + 
+  geom_col(alpha = 0.9) +
+  coord_flip()+
+  geom_text(size=3,hjust=rep(c(1.1,-.5),20))+
+  theme_light() +
+  scale_y_continuous(labels = abs) +
+  scale_fill_manual(values = c("midnightblue", "darkred")) +  # cor do grafico
+  theme(legend.position = "top")+       # posição da legenda
+  labs(y = "População",
+       x="Classe",
+       subtitle = input$distrito_s,
+       title = B$Departamento[1] )       # rotulo pro eixo
+
+
+})
+
+
+```
+
+```{r echo=FALSE, warning=FALSE}
+library(formattable)
+
+df2 <- censo17 %>% filter(Sexo=="Total",variable=="Total") %>%  group_by(Departamento) %>%
+  summarise("nº de Provincias"=sum(n_distinct(Provincia),na.rm = T),
+            "nº de Distritos"=sum(n_distinct(Distrito),na.rm = T),
+            "QTD. de população"=sum(as.numeric(value)),na.rm = T) %>%
+        mutate(n=1:length(`Departamento`)) %>% select(n,Departamento,`nº de Provincias`,
+                                                      `nº de Distritos`,`QTD. de população`)
+
+df2[1,2]<-"Total"
+df2$Departamento<-as.factor(df2$Departamento)
+
+formattable(df2, list(
+       `Departamento` = color_tile("orange", "red"),
+       area(col = c(`nº de Distritos`)) ~ normalize_bar("lightgrey", 0.2),
+   `QTD. de população` = formatter("span",
+                            style = x ~ style(color = ifelse(rank(-x) <= 5, "green", "gray"),font.weight = ifelse(rank(-x) <= 5,"bold","italic")),
+                            x ~ sprintf("%.0f (rank: %02g)", x, rank(-x)))
+   
+  ))
+
+
+
+
+
+```
+
+
+```{r echo=FALSE, warning=FALSE}
+#CODIGO DO GRAFICO
+options(scipen = 999)
+library(shiny)
+selectInput("departamento_s", "Selecione o departamento", 
+  choices = c(unique(censo17$Departamento)),selected ="Amazonas")
+
+renderPlot({
+B <- censo17 %>% filter(Departamento ==input$departamento_s)
+
+B <- B %>% 
+  mutate(value2 = ifelse(Sexo=="Hombre", -as.numeric(value) , as.numeric(value))) %>%
+        group_by(Departamento, Sexo, variable) %>% 
+        summarise(value2=sum(value2,na.rm = T))
+
+B %>% filter(Sexo!="Total",variable!="Total") %>% 
+  ggplot(aes(
+    x = variable, y = value2,
+    fill = Sexo, label=abs(value2))
+  ) + 
+  geom_col(alpha = 0.9) +
+  coord_flip()+
+  geom_text(size=3,hjust=rep(c(1.1,-.5),20))+
+  theme_light() +
+  scale_y_continuous(labels = abs) +
+  scale_fill_manual(values = c("midnightblue", "darkred")) +  # cor do grafico
+  theme(legend.position = "top")+       # posição da legenda
+  labs(y = "População",
+       x="Classe",
+       title = input$departamento_s )       # rotulo pro eixo
+
+
+})
+
+
+```
+
+
+```{r echo=FALSE, warning=FALSE}
+#CODIGO DO GRAFICO
+options(scipen = 999)
+library(shiny)
+selectInput("provincia_s", "Selecione a provincia", 
+  choices = c(unique(censo17$Provincia)),selected =" Bongara")
+
+renderPlot({
+B <- censo17 %>% filter(Provincia ==input$provincia_s)
+
+B <- B %>% 
+  mutate(value2 = ifelse(Sexo=="Hombre", -as.numeric(value) , as.numeric(value))) %>%
+        group_by(Provincia, Sexo, variable) %>% 
+        summarise(value2=sum(value2,na.rm = T))
+
+B %>% filter(Sexo!="Total",variable!="Total") %>% 
+  ggplot(aes(
+    x = variable, y = value2,
+    fill = Sexo, label=abs(value2))
+  ) + 
+  geom_col(alpha = 0.9) +
+  coord_flip()+
+  geom_text(size=3,hjust=rep(c(1.1,-.5),20))+
+  theme_light() +
+  scale_y_continuous(labels = abs) +
+  scale_fill_manual(values = c("midnightblue", "darkred")) +  # cor do grafico
+  theme(legend.position = "top")+       # posição da legenda
+  labs(y = "População",
+       x="Classe",
+       title = input$provincia_s )       # rotulo pro eixo
+
+
+})
+
+
+```
+
+
+
+```{r echo=FALSE, warning=FALSE}
+
+renderPlot({
+    
+p1<-malha_d %>% ggplot(aes(fill= DEPARTAMEN == str_to_upper(input$departamento_s))) +
+                geom_sf() +
+                scale_fill_manual("departamento", values = c("grey","red"))+
+                labs(title = input$departamento_s)+
+        guides(color = FALSE, 
+           fill = FALSE) +
+                theme_void()
+
+p2<-malha_p %>% ggplot(aes(fill= PROVINCIA == str_to_upper(str_trim(input$provincia_s)))) +
+                geom_sf() +
+                scale_fill_manual("PROVINCIA", values = c("grey","red"))+
+                labs(title = input$provincia_s)+
+        guides(color = FALSE, 
+           fill = FALSE) +
+                theme_void()        
+        
+ cowplot::plot_grid(p1,p2)       
+        
+        })
+
+
+```
+
+
+
+
+
+
+
+
