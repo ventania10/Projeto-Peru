@@ -4,6 +4,7 @@ Repositório para controle e análises estatísticas desenvolvidas ao longo do p
 
 ## Informações Básicas:
 > Orientador - Leandro Tavares Correia (EST/UnB)
+> 
 > Orientador - Ana Maria Nogales Vasconcelos (EST/UnB)
 >
 > 
